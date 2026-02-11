@@ -7,10 +7,14 @@ use App\Http\Requests\User\StoreUserRequest;
 use App\Http\Requests\User\UpdateUserRequest;
 use App\Http\Requests\User\UpdateProfileRequest;
 use App\Http\Requests\User\UpdateUserPasswordRequest;
+use App\Http\Resources\UserResource;
+use Illuminate\Foundation\Auth\Access\AuthorizesRequests;
 use Illuminate\Support\Facades\Hash;
 
 class UserController extends Controller
 {
+    use AuthorizesRequests;
+
     /**
      * Display a listing of users
      */
@@ -18,9 +22,7 @@ class UserController extends Controller
     {
         $this->authorize('viewAny', User::class);
 
-        $users = User::all();
-
-        return response()->json($users);
+        return UserResource::collection(User::all());
     }
 
     /**
@@ -31,13 +33,13 @@ class UserController extends Controller
         $this->authorize('create', User::class);
 
         $user = User::create([
-            'name' => $request->name,
-            'email' => $request->email,
+            'name'     => $request->name,
+            'email'    => $request->email,
             'password' => Hash::make($request->password),
-            'role' => $request->role,
+            'role'     => $request->role,
         ]);
 
-        return response()->json($user, 201);
+        return new UserResource($user);
     }
 
     /**
@@ -47,11 +49,11 @@ class UserController extends Controller
     {
         $this->authorize('view', $user);
 
-        return response()->json($user);
+        return new UserResource($user);
     }
 
     /**
-     * Update the specified user (admin only - can change role)
+     * Update the specified user (admin only)
      */
     public function update(UpdateUserRequest $request, User $user)
     {
@@ -59,11 +61,11 @@ class UserController extends Controller
 
         $user->update($request->validated());
 
-        return response()->json($user);
+        return new UserResource($user);
     }
 
     /**
-     * Update user profile (own profile only)
+     * Update own profile
      */
     public function updateProfile(UpdateProfileRequest $request, User $user)
     {
@@ -71,15 +73,21 @@ class UserController extends Controller
 
         $user->update($request->validated());
 
-        return response()->json($user);
+        return new UserResource($user);
     }
 
     /**
-     * Update user password (own password only)
+     * Update own password
      */
     public function updatePassword(UpdateUserPasswordRequest $request, User $user)
     {
         $this->authorize('updatePassword', $user);
+
+        if (! Hash::check($request->current_password, $user->password)) {
+            return response()->json([
+                'error' => 'Current password is incorrect'
+            ], 422);
+        }
 
         $user->update([
             'password' => Hash::make($request->password)
@@ -99,6 +107,8 @@ class UserController extends Controller
 
         $user->delete();
 
-        return response()->json(['message' => 'User deleted successfully']);
+        return response()->json([
+            'message' => 'User deleted successfully'
+        ]);
     }
 }

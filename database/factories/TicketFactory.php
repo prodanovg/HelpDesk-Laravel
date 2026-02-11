@@ -21,12 +21,14 @@ class TicketFactory extends Factory
     public function definition(): array
     {
         return [
-            'title' => $this->faker->title(),
-            'description' => $this->faker->text(),
+            'title' => $this->faker->sentence(),
+            'description' => $this->faker->paragraph(),
             'user_id' => User::factory(),
             'team_id' => Team::factory(),
-            'ticket_status_id' => TicketStatus::query()->inRandomOrder()->value('id'),
-            'ticket_priority_id' => TicketPriority::query()->inRandomOrder()->value('id'),
+
+            'ticket_status_id' => TicketStatus::factory(),
+            'ticket_priority_id' => TicketPriority::factory(),
+
             'assigned_to' =>  $this->faker->boolean(70)
                 ? User::factory()
                 : null,

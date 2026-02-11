@@ -2,6 +2,9 @@
 
 namespace App\Http\Controllers;
 
+use App\Http\Resources\TicketResource;
+use Illuminate\Foundation\Auth\Access\AuthorizesRequests;
+use Illuminate\Foundation\Validation\ValidatesRequests;
 use Illuminate\Http\Request;
 use App\Models\Ticket;
 use App\Models\TicketStatus;
@@ -13,7 +16,10 @@ use App\Http\Requests\Ticket\UpdateTicketPriorityRequest;
 
 class TicketController extends Controller
 {
+    use AuthorizesRequests, ValidatesRequests;
+
     //
+
     /**
      * Display a listing of tickets (scoped by role)
      */
@@ -21,13 +27,24 @@ class TicketController extends Controller
     {
         $this->authorize('viewAny', Ticket::class);
 
-        $tickets = match(auth()->user()->role) {
-            'admin', 'manager' => Ticket::with(['user', 'team', 'status', 'priority', 'assignee'])->get(),
-            'agent' => auth()->user()->assignedTickets()->with(['user', 'team', 'status', 'priority'])->get(),
-            'customer' => auth()->user()->tickets()->with(['team', 'status', 'priority', 'assignee'])->get(),
+        $tickets = match (auth()->user()->role) {
+            'admin', 'manager' =>
+            Ticket::with(['user', 'team', 'status', 'priority', 'assignee'])->get(),
+
+            'agent' =>
+            auth()->user()
+                ->assignedTickets()
+                ->with(['user', 'team', 'status', 'priority'])
+                ->get(),
+
+            'customer' =>
+            auth()->user()
+                ->tickets()
+                ->with(['team', 'status', 'priority', 'assignee'])
+                ->get(),
         };
 
-        return response()->json($tickets);
+        return TicketResource::collection($tickets);
     }
 
     /**
@@ -37,8 +54,10 @@ class TicketController extends Controller
     {
         $this->authorize('create', Ticket::class);
 
-        // Get the default "Open" status
-        $openStatus = TicketStatus::where('slug', 'open')->first();
+        $openStatus = TicketStatus::firstOrCreate(
+            ['slug' => 'open'],
+            ['name' => 'Open', 'is_active' => true]
+        );
 
         $ticket = auth()->user()->tickets()->create([
             'title' => $request->title,
@@ -48,7 +67,9 @@ class TicketController extends Controller
             'ticket_status_id' => $openStatus->id,
         ]);
 
-        return response()->json($ticket->load(['team', 'status', 'priority']), 201);
+        $ticket->load(['user', 'team', 'status', 'priority']);
+
+        return new TicketResource($ticket);
     }
 
     /**
@@ -58,7 +79,9 @@ class TicketController extends Controller
     {
         $this->authorize('view', $ticket);
 
-        return response()->json($ticket->load(['user', 'team', 'status', 'priority', 'assignee']));
+        $ticket->load(['user', 'team', 'status', 'priority', 'assignee']);
+
+        return new TicketResource($ticket);
     }
 
     /**
@@ -69,8 +92,9 @@ class TicketController extends Controller
         $this->authorize('update', $ticket);
 
         $ticket->update($request->validated());
+        $ticket->load(['user', 'team', 'status', 'priority', 'assignee']);
 
-        return response()->json($ticket->load(['user', 'team', 'status', 'priority', 'assignee']));
+        return new TicketResource($ticket);
     }
 
     /**
@@ -80,9 +104,13 @@ class TicketController extends Controller
     {
         $this->authorize('assign', $ticket);
 
-        $ticket->update(['assigned_to' => $request->assigned_to]);
+        $ticket->update([
+            'assigned_to' => $request->assigned_to
+        ]);
 
-        return response()->json($ticket->load(['assignee']));
+        $ticket->load(['assignee']);
+
+        return new TicketResource($ticket);
     }
 
     /**
@@ -92,9 +120,13 @@ class TicketController extends Controller
     {
         $this->authorize('updateStatus', $ticket);
 
-        $ticket->update(['ticket_status_id' => $request->ticket_status_id]);
+        $ticket->update([
+            'ticket_status_id' => $request->ticket_status_id
+        ]);
 
-        return response()->json($ticket->load(['status']));
+        $ticket->load(['status']);
+
+        return new TicketResource($ticket);
     }
 
     /**
@@ -104,9 +136,13 @@ class TicketController extends Controller
     {
         $this->authorize('updatePriority', $ticket);
 
-        $ticket->update(['ticket_priority_id' => $request->ticket_priority_id]);
+        $ticket->update([
+            'ticket_priority_id' => $request->ticket_priority_id
+        ]);
 
-        return response()->json($ticket->load(['priority']));
+        $ticket->load(['priority']);
+
+        return new TicketResource($ticket);
     }
 
     /**
@@ -118,6 +154,8 @@ class TicketController extends Controller
 
         $ticket->delete();
 
-        return response()->json(['message' => 'Ticket deleted successfully']);
+        return response()->json([
+            'message' => 'Ticket deleted successfully'
+        ]);
     }
 }

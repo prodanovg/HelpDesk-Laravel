@@ -21,14 +21,19 @@ class TicketPolicy
      */
     public function view(User $user, Ticket $ticket): bool
     {
+        // Admins and managers can view all tickets
         if (in_array($user->role, ['admin', 'manager'])) {
             return true;
         }
-        if ($user->role === 'agent') {
+
+        // Agents can view tickets assigned to them
+        if ($user->isAgent()) {
             return $ticket->assigned_to === $user->id;
         }
-        if ($user->role === 'customer') {
-            return $ticket->customer_id === $user->id;
+
+        // Customers can only view their own tickets
+        if ($user->isCustomer()) {
+            return $ticket->user_id === $user->id;  // ← This must be correct!
         }
 
         return false;
