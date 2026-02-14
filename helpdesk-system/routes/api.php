@@ -8,17 +8,11 @@ use App\Http\Controllers\UserController;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 
-// Public routes
-Route::middleware('web')->group(function () {
-    Route::post('/register', [AuthController::class, 'register']);
-    Route::post('/login', [AuthController::class, 'login']);
-    Route::post('/logout', [AuthController::class, 'logout']);
-});
+
 // Protected routes (require authentication)
 Route::middleware('auth:sanctum')->group(function () {
 
     // Auth routes
-    Route::post('/logout', [AuthController::class, 'logout']);
     Route::get('/me', [AuthController::class, 'me']);
 
     // Ticket routes
@@ -30,6 +24,7 @@ Route::middleware('auth:sanctum')->group(function () {
     // User routes
     Route::apiResource('users', UserController::class)
         ->only(['index', 'show', 'update']);
+
     Route::patch('/users/{user}/profile', [UserController::class, 'updateProfile']);
     Route::patch('/users/{user}/password', [UserController::class, 'updatePassword']);
 

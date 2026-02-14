@@ -6,7 +6,6 @@ use App\Http\Resources\UserResource;
 use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
-use Illuminate\Support\Facades\Hash;
 use Illuminate\Validation\ValidationException;
 use App\Http\Requests\Auth\RegisterRequest;
 use App\Http\Requests\Auth\LoginRequest;
@@ -16,13 +15,12 @@ class AuthController extends Controller
     public function register(RegisterRequest $request)
     {
         $user = User::create([
-            'name' => $request->name,
-            'email' => $request->email,
-            'password' => $request->password, // cast hashes it
-            'role' => 'customer',
+            'name'     => $request->name,
+            'email'    => $request->email,
+            'password' => $request->password,
+            'role'     => 'customer',
         ]);
 
-        // 🔥 AUTO LOGIN AFTER REGISTER
         Auth::login($user);
         $request->session()->regenerate();
 
@@ -39,7 +37,6 @@ class AuthController extends Controller
             ]);
         }
 
-        // 🔥 THIS IS REQUIRED
         $request->session()->regenerate();
 
         return response()->json([
@@ -54,11 +51,13 @@ class AuthController extends Controller
 
     public function logout(Request $request)
     {
-        $request->user()->currentAccessToken()->delete();
+        Auth::guard('web')->logout();
+
+        $request->session()->invalidate();
+        $request->session()->regenerateToken();
 
         return response()->json([
             'message' => 'Logged out successfully',
         ]);
     }
-
 }

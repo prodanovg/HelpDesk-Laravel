@@ -4,7 +4,6 @@ namespace Tests\Feature;
 
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
-use Illuminate\Session\Middleware\StartSession;
 use Tests\TestCase;
 use PHPUnit\Framework\Attributes\Test;
 
@@ -12,16 +11,10 @@ class AuthTest extends TestCase
 {
     use RefreshDatabase;
 
-    protected function setUp(): void
-    {
-        parent::setUp();
-        $this->withMiddleware(StartSession::class);
-    }
-
     #[Test]
     public function user_can_register()
     {
-        $response = $this->postJson('/api/register', [
+        $response = $this->post('/register', [
             'name' => 'Test User',
             'email' => 'test@example.com',
             'password' => 'password',
@@ -42,15 +35,13 @@ class AuthTest extends TestCase
             'password' => bcrypt('password'),
         ]);
 
-        $this->get('/sanctum/csrf-cookie');
-
-        $response = $this->postJson('/api/login', [
+        $response = $this->post('/login', [
             'email' => $user->email,
             'password' => 'password',
         ]);
 
         $response->assertStatus(200);
-        $this->assertAuthenticated();
+        $this->assertAuthenticated('web');
     }
 
     #[Test]
@@ -81,17 +72,11 @@ class AuthTest extends TestCase
     {
         $user = User::factory()->create();
 
-        $token = $user->createToken('test-token')->plainTextToken;
-
-        $response = $this->withHeader(
-            'Authorization',
-            'Bearer ' . $token
-        )->postJson('/api/logout');
+        $response = $this
+            ->actingAs($user, 'web')
+            ->post('/logout');
 
         $response->assertStatus(200);
-
-        $this->assertCount(0, $user->fresh()->tokens);
+        $this->assertGuest('web');
     }
-
-
 }

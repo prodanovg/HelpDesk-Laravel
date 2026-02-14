@@ -8,29 +8,29 @@ use App\Models\TicketStatus;
 use App\Models\User;
 use Illuminate\Database\Eloquent\Factories\Factory;
 
-/**
- * @extends \Illuminate\Database\Eloquent\Factories\Factory<\App\Models\Ticket>
- */
 class TicketFactory extends Factory
 {
-    /**
-     * Define the model's default state.
-     *
-     * @return array<string, mixed>
-     */
     public function definition(): array
     {
         return [
-            'title' => $this->faker->sentence(),
-            'description' => $this->faker->paragraph(),
-            'user_id' => User::factory(),
-            'team_id' => Team::factory(),
+            'title' => fake()->sentence(),
+            'description' => fake()->paragraph(),
 
-            'ticket_status_id' => TicketStatus::factory(),
-            'ticket_priority_id' => TicketPriority::factory(),
+            'user_id' => User::query()->first()->id
+                ?? User::factory()->create()->id,
 
-            'assigned_to' =>  $this->faker->boolean(70)
-                ? User::factory()
+            'team_id' => Team::query()->first()->id
+                ?? Team::factory()->create()->id,
+
+            'ticket_status_id' => TicketStatus::query()->first()->id
+                ?? TicketStatus::factory()->create()->id,
+
+            'ticket_priority_id' => TicketPriority::query()->first()->id
+                ?? TicketPriority::factory()->create()->id,
+
+            'assigned_to' => fake()->boolean(70)
+                ? User::query()->inRandomOrder()->first()->id
+                ?? User::factory()->create()->id
                 : null,
         ];
     }

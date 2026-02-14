@@ -5,89 +5,73 @@ namespace App\Policies;
 use App\Models\Ticket;
 use App\Models\User;
 use Illuminate\Auth\Access\Response;
-
 class TicketPolicy
 {
-    /**
-     * Determine whether the user can view any models.
-     */
     public function viewAny(User $user): bool
     {
         return true;
     }
 
-    /**
-     * Determine whether the user can view the model.
-     */
     public function view(User $user, Ticket $ticket): bool
     {
-        // Admins and managers can view all tickets
+        logger()->info('POLICY HIT', [
+            'user_id' => $user->id,
+            'ticket_user_id' => $ticket->user_id,
+            'role' => $user->role,
+        ]);
+
         if (in_array($user->role, ['admin', 'manager'])) {
             return true;
         }
 
-        // Agents can view tickets assigned to them
         if ($user->isAgent()) {
             return $ticket->assigned_to === $user->id;
         }
 
-        // Customers can only view their own tickets
         if ($user->isCustomer()) {
-            return $ticket->user_id === $user->id;  // ← This must be correct!
+            return $ticket->user_id === $user->id;
         }
 
         return false;
     }
 
-    /**
-     * Determine whether the user can create models.
-     */
     public function create(User $user): bool
     {
         return $user->role === 'customer';
     }
 
-    /**
-     * Determine whether the user can update the model.
-     */
     public function update(User $user, Ticket $ticket): bool
     {
         if (in_array($user->role, ['admin', 'manager'])) {
             return true;
         }
-        if ($user->role === 'agent') {
+
+        if ($user->isAgent()) {
             return $ticket->assigned_to === $user->id;
         }
-        if ($user->role === 'customer') {
-            return $ticket->customer_id === $user->id;
+
+        if ($user->isCustomer()) {
+            return $ticket->user_id === $user->id; // ✅ FIXED
         }
 
         return false;
     }
 
-    /**
-     * Determine whether the user can delete the model.
-     */
     public function delete(User $user, Ticket $ticket): bool
     {
         return $user->role === 'admin';
-
     }
 
-    /**
-     * Determine whether the user can restore the model.
-     */
     public function restore(User $user, Ticket $ticket): bool
     {
-        return $user->role === 'admin';    }
+        return $user->role === 'admin';
+    }
 
-    /**
-     * Determine whether the user can permanently delete the model.
-     */
     public function forceDelete(User $user, Ticket $ticket): bool
     {
         return $user->role === 'admin';
     }
+
     public function assign(User $user, Ticket $ticket): bool
     {
         return in_array($user->role, ['manager', 'admin']);

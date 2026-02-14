@@ -1,30 +1,31 @@
-import { useState } from 'react';
-import api from '../lib/axios';
+import { useState } from "react";
+import api, {getCsrf} from "../lib/axios";
 
 export default function Login() {
-    const [email, setEmail] = useState('');
-    const [password, setPassword] = useState('');
-    const [error, setError] = useState('');
+    const [email, setEmail] = useState("");
+    const [password, setPassword] = useState("");
+    const [error, setError] = useState("");
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
-        setError('');
+        setError("");
 
         try {
-            // CSRF
-            await api.get('/sanctum/csrf-cookie');
+            // Step 1: get CSRF cookie
+            await getCsrf(); // first fetch CSRF cookie
+            await api.post("/login", { email, password }); // login sets laravel_session cookie
+            const me = await api.get("/api/me");
 
-            // Login
-            await api.post('/api/login', {
-                email,
-                password,
-            });
-
-            // Test auth
-            const me = await api.get('/api/me');
-            console.log('Logged in:', me.data);
-        } catch (err: any) {
-            setError('Invalid credentials');
+            console.log("Logged in user:", me.data);
+        } catch (err: unknown) {
+            // Narrow the error type
+            if (err instanceof Error) {
+                console.error(err.message);
+                setError("Invalid credentials or server error");
+            } else {
+                console.error(err);
+                setError("An unexpected error occurred");
+            }
         }
     };
 
@@ -36,9 +37,7 @@ export default function Login() {
                         <div className="card-body">
                             <h3 className="text-center mb-3">Login</h3>
 
-                            {error && (
-                                <div className="alert alert-danger">{error}</div>
-                            )}
+                            {error && <div className="alert alert-danger">{error}</div>}
 
                             <form onSubmit={handleSubmit}>
                                 <div className="mb-3">
@@ -63,7 +62,7 @@ export default function Login() {
                                     />
                                 </div>
 
-                                <button className="btn btn-primary w-100">
+                                <button className="btn btn-primary w-100" type="submit">
                                     Login
                                 </button>
                             </form>

@@ -55,16 +55,18 @@ class TicketPolicyTest extends TestCase
     #[Test]
     public function customer_cannot_view_other_users_ticket()
     {
-        $customer = User::factory()->create([
-            'role' => 'customer',
+        $customer = User::factory()->create(['role' => 'customer']);
+        $otherUser = User::factory()->create(['role' => 'customer']);
+
+        $otherTicket = Ticket::factory()->create([
+            'user_id' => $otherUser->id,
         ]);
 
-        $otherTicket = Ticket::factory()->create();
-
-        $this->actingAs($customer)
+        $this->actingAs($customer, 'sanctum')
             ->getJson("/api/tickets/{$otherTicket->id}")
             ->assertStatus(403);
     }
+
 
     #[Test]
     public function manager_can_view_any_ticket()
