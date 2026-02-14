@@ -1,31 +1,41 @@
 import { useState } from "react";
-import api, {getCsrf} from "../lib/axios";
+import { useNavigate, Link } from "react-router-dom";
+import api from "../lib/axios";
 
 export default function Login() {
     const [email, setEmail] = useState("");
     const [password, setPassword] = useState("");
     const [error, setError] = useState("");
+    const [loading, setLoading] = useState(false);
+    const navigate = useNavigate();
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         setError("");
+        setLoading(true);
 
         try {
-            // Step 1: get CSRF cookie
-            await getCsrf(); // first fetch CSRF cookie
-            await api.post("/login", { email, password }); // login sets laravel_session cookie
-            const me = await api.get("/api/me");
+            const response = await api.post("/api/login", {
+                email,
+                password
+            });
 
-            console.log("Logged in user:", me.data);
+            console.log("Login success:", response.data);
+
+            localStorage.setItem("token", response.data.token);
+            localStorage.setItem("user", JSON.stringify(response.data.user));
+
+            navigate("/tickets");
         } catch (err: unknown) {
-            // Narrow the error type
-            if (err instanceof Error) {
-                console.error(err.message);
-                setError("Invalid credentials or server error");
+            console.error("Login error:", err);
+            if (err && typeof err === 'object' && 'response' in err) {
+                const error = err as { response?: { data?: { message?: string } } };
+                setError(error.response?.data?.message || "Invalid credentials or server error");
             } else {
-                console.error(err);
                 setError("An unexpected error occurred");
             }
+        } finally {
+            setLoading(false);
         }
     };
 
@@ -37,7 +47,9 @@ export default function Login() {
                         <div className="card-body">
                             <h3 className="text-center mb-3">Login</h3>
 
-                            {error && <div className="alert alert-danger">{error}</div>}
+                            {error && (
+                                <div className="alert alert-danger">{error}</div>
+                            )}
 
                             <form onSubmit={handleSubmit}>
                                 <div className="mb-3">
@@ -62,9 +74,22 @@ export default function Login() {
                                     />
                                 </div>
 
-                                <button className="btn btn-primary w-100" type="submit">
-                                    Login
+                                <button
+                                    className="btn btn-primary w-100"
+                                    type="submit"
+                                    disabled={loading}
+                                >
+                                    {loading ? "Loading..." : "Login"}
                                 </button>
+
+                                <div className="text-center mt-3">
+                                    <p className="text-muted mb-0">
+                                        Don't have an account?{' '}
+                                        <Link to="/register" className="text-primary text-decoration-none fw-semibold">
+                                            Register here
+                                        </Link>
+                                    </p>
+                                </div>
                             </form>
                         </div>
                     </div>

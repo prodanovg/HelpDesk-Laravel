@@ -14,7 +14,7 @@ class AuthTest extends TestCase
     #[Test]
     public function user_can_register()
     {
-        $response = $this->post('/register', [
+        $response = $this->post('/api/register', [
             'name' => 'Test User',
             'email' => 'test@example.com',
             'password' => 'password',
@@ -35,13 +35,16 @@ class AuthTest extends TestCase
             'password' => bcrypt('password'),
         ]);
 
-        $response = $this->post('/login', [
+        $response = $this->post('/api/login', [
             'email' => $user->email,
             'password' => 'password',
         ]);
 
-        $response->assertStatus(200);
-        $this->assertAuthenticated('web');
+        $response->assertStatus(200)
+            ->assertJsonStructure([
+                'user',
+                'token',
+            ]);
     }
 
     #[Test]
@@ -72,11 +75,19 @@ class AuthTest extends TestCase
     {
         $user = User::factory()->create();
 
-        $response = $this
-            ->actingAs($user, 'web')
-            ->post('/logout');
+        $token = $user->createToken('test_token')->plainTextToken;
 
-        $response->assertStatus(200);
-        $this->assertGuest('web');
+        $response = $this
+            ->withHeader('Authorization', 'Bearer ' . $token)
+            ->postJson('/api/logout');
+
+        $response->assertStatus(200)
+            ->assertJson([
+                'message' => 'Logged out successfully'
+            ]);
+
+        $this->assertDatabaseMissing('personal_access_tokens', [
+            'tokenable_id' => $user->id,
+        ]);
     }
 }
