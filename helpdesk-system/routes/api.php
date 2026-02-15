@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\AuthController;
+use App\Http\Controllers\TeamController;
 use App\Http\Controllers\TicketController;
 use App\Http\Controllers\TicketPriorityController;
 use App\Http\Controllers\TicketStatusController;
@@ -25,6 +26,8 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('/tickets/{ticket}/assign', [TicketController::class, 'assign']);
     Route::patch('/tickets/{ticket}/status', [TicketController::class, 'updateStatus']);
     Route::patch('/tickets/{ticket}/priority', [TicketController::class, 'updatePriority']);
+
+    Route::get('/teams', [TeamController::class, 'index']);
 
     // User routes
     Route::apiResource('users', UserController::class)

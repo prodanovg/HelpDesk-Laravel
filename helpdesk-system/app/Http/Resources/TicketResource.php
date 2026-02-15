@@ -13,16 +13,47 @@ class TicketResource extends JsonResource
             'id' => $this->id,
             'title' => $this->title,
             'description' => $this->description,
-
-            'status' => new TicketStatusResource($this->whenLoaded('status')),
-            'priority' => new TicketPriorityResource($this->whenLoaded('priority')),
-            'team' => new TeamResource($this->whenLoaded('team')),
-
-            'created_by' => new UserResource($this->whenLoaded('user')),
-            'assigned_to' => new UserResource($this->whenLoaded('assignee')),
-
+            'user_id' => $this->user_id,
+            'assigned_to' => $this->assigned_to,
             'created_at' => $this->created_at?->toISOString(),
+            'updated_at' => $this->updated_at?->toISOString(),
+
+            'status' => $this->whenLoaded('status', function () {
+                return [
+                    'id' => $this->status->id,
+                    'name' => $this->status->name,
+                    'slug' => $this->status->slug,
+                ];
+            }),
+
+            'priority' => $this->whenLoaded('priority', function () {
+                return [
+                    'id' => $this->priority->id,
+                    'name' => $this->priority->name,
+                    'level' => $this->priority->level,
+                ];
+            }),
+
+            'team' => $this->whenLoaded('team', function () {
+                return [
+                    'id' => $this->team->id,
+                    'name' => $this->team->name,
+                ];
+            }),
+
+            'user' => $this->whenLoaded('user', function () {
+                return [
+                    'id' => $this->user->id,
+                    'name' => $this->user->name,
+                ];
+            }),
+
+            'assignee' => $this->whenLoaded('assignee', function () {
+                return $this->assignee ? [
+                    'id' => $this->assignee->id,
+                    'name' => $this->assignee->name,
+                ] : null;
+            }),
         ];
     }
-
 }

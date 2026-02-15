@@ -1,6 +1,10 @@
 import { useEffect, useState, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import api from '../lib/axios';
+import CreateTicketModal from '../components/CreateTicketModal';
+import AssignTicketModal from '../components/AssignTicketModal';
+import EditTicketModal from '../components/EditTicketModal';
+import ChangeStatusModal from '../components/ChangeStatusModal';
 
 interface User {
     id: number;
@@ -9,8 +13,50 @@ interface User {
     role: string;
 }
 
+interface Ticket {
+    id: number;
+    title: string;
+    description: string;
+    created_at: string;
+    user_id: number;
+    assigned_to?: number | null;
+    status: {
+        id: number;
+        name: string;
+        slug: string;
+    };
+    priority: {
+        id: number;
+        name: string;
+        level: number;
+    };
+    team: {
+        id: number;
+        name: string;
+    };
+    user: {
+        id: number;
+        name: string;
+    };
+    assignee?: {
+        id: number;
+        name: string;
+    } | null;
+}
+
 export default function Tickets() {
     const [user, setUser] = useState<User | null>(null);
+    const [tickets, setTickets] = useState<Ticket[]>([]);
+    const [loading, setLoading] = useState(true);
+    const [error, setError] = useState('');
+
+    // Modal states
+    const [showCreateModal, setShowCreateModal] = useState(false);
+    const [showAssignModal, setShowAssignModal] = useState(false);
+    const [showEditModal, setShowEditModal] = useState(false);
+    const [showStatusModal, setShowStatusModal] = useState(false);
+    const [selectedTicket, setSelectedTicket] = useState<Ticket | null>(null);
+
     const navigate = useNavigate();
     const hasLoaded = useRef(false);
 
@@ -28,24 +74,126 @@ export default function Tickets() {
 
         try {
             setUser(JSON.parse(userData));
+            fetchTickets();
         } catch (error) {
             console.error('Failed to parse user data:', error);
             navigate('/login');
         }
     }, [navigate]);
 
+    const fetchTickets = async () => {
+        try {
+            setLoading(true);
+            const response = await api.get('/api/tickets');
+            setTickets(response.data.data || response.data);
+            setError('');
+        } catch (err) {
+            console.error('Error fetching tickets:', err);
+            setError('Failed to load tickets');
+        } finally {
+            setLoading(false);
+        }
+    };
+
     const handleLogout = async () => {
         try {
-            // Call logout API to invalidate token on server
             await api.post('/api/logout');
         } catch (error) {
             console.error('Logout error:', error);
         } finally {
-            // Clear localStorage regardless of API call success
             localStorage.removeItem('token');
             localStorage.removeItem('user');
             navigate('/login');
         }
+    };
+
+    // Permission checks
+    const canEditTicket = (ticket: Ticket): boolean => {
+        if (!user) return false;
+
+        // Admins and managers can edit any ticket
+        if (user.role === 'admin' || user.role === 'manager') return true;
+
+        // Agents can edit tickets assigned to them
+        if (user.role === 'agent' && ticket.assigned_to === user.id) return true;
+
+        // Customers can edit their own tickets
+        if (user.role === 'customer' && ticket.user_id === user.id) return true;
+
+        return false;
+    };
+
+    const canChangeStatus = (ticket: Ticket): boolean => {
+        if (!user) return false;
+
+        // Admins and managers can change any ticket status
+        if (user.role === 'admin' || user.role === 'manager') return true;
+
+        // Agents can change status of tickets assigned to them
+        if (user.role === 'agent' && ticket.assigned_to === user.id) return true;
+
+        return false;
+    };
+
+    const canChangePriority = (): boolean => {
+        if (!user) return false;
+        return user.role === 'admin' || user.role === 'manager';
+    };
+
+    const canAssignTicket = (): boolean => {
+        if (!user) return false;
+        return user.role === 'admin' || user.role === 'manager';
+    };
+
+    // Modal handlers
+    const handleAssignClick = (ticket: Ticket) => {
+        setSelectedTicket(ticket);
+        setShowAssignModal(true);
+    };
+
+    const handleEditClick = (ticket: Ticket) => {
+        setSelectedTicket(ticket);
+        setShowEditModal(true);
+    };
+
+    const handleStatusClick = (ticket: Ticket) => {
+        setSelectedTicket(ticket);
+        setShowStatusModal(true);
+    };
+
+    const handleTicketUpdated = () => {
+        fetchTickets();
+    };
+
+    const getStatusBadgeClass = (slug: string) => {
+        switch (slug) {
+            case 'open': return 'bg-success';
+            case 'in_progress': return 'bg-info';
+            case 'closed': return 'bg-secondary';
+            default: return 'bg-primary';
+        }
+    };
+
+    const getPriorityBadgeClass = (level: number) => {
+        if (level === 4) return 'bg-danger';
+        if (level === 3) return 'bg-warning text-dark';
+        if (level === 2) return 'bg-info';
+        return 'bg-success';
+    };
+
+    const formatDate = (dateString: string) => {
+        const date = new Date(dateString);
+        const now = new Date();
+        const diffMs = now.getTime() - date.getTime();
+        const diffMins = Math.floor(diffMs / 60000);
+        const diffHours = Math.floor(diffMs / 3600000);
+        const diffDays = Math.floor(diffMs / 86400000);
+
+        if (diffMins < 1) return 'just now';
+        if (diffMins < 60) return `${diffMins} min ago`;
+        if (diffHours < 24) return `${diffHours}h ago`;
+        if (diffDays < 7) return `${diffDays}d ago`;
+        return date.toLocaleDateString();
     };
 
     if (!user) {
@@ -64,14 +212,17 @@ export default function Tickets() {
             <nav className="navbar navbar-expand-lg navbar-dark bg-primary">
                 <div className="container-fluid">
                     <a className="navbar-brand" href="#">
+                        <i className="bi bi-headset me-2"></i>
                         <strong>Helpdesk System</strong>
                     </a>
                     <div className="d-flex align-items-center">
                         <span className="text-white me-3">
-                            Welcome, <strong>{user.name}</strong> ({user.role})
+                            <i className="bi bi-person-circle me-2"></i>
+                            <strong>{user.name}</strong>
+                            <span className="badge bg-light text-dark ms-2">{user.role}</span>
                         </span>
-                        <button className="btn btn-outline-light" onClick={handleLogout}>
-                            <i className="bi bi-box-arrow-right me-2"></i>
+                        <button className="btn btn-outline-light btn-sm" onClick={handleLogout}>
+                            <i className="bi bi-box-arrow-right me-1"></i>
                             Logout
                         </button>
                     </div>
@@ -82,154 +233,262 @@ export default function Tickets() {
                 {/* Page Header */}
                 <div className="row mb-4">
                     <div className="col">
-                        <h2>My Tickets</h2>
+                        <h2>
+                            <i className="bi bi-ticket-perforated me-2"></i>
+                            My Tickets
+                        </h2>
                         <p className="text-muted">Manage and track your support tickets</p>
                     </div>
-                    <div className="col-auto">
-                        <button className="btn btn-primary">
-                            <i className="bi bi-plus-circle me-2"></i>
-                            Create New Ticket
-                        </button>
-                    </div>
+                    {user.role === 'customer' && (
+                        <div className="col-auto">
+                            <button
+                                className="btn btn-primary"
+                                onClick={() => setShowCreateModal(true)}
+                            >
+                                <i className="bi bi-plus-circle me-2"></i>
+                                Create New Ticket
+                            </button>
+                        </div>
+                    )}
                 </div>
 
-                {/* User Info Card */}
-                <div className="row mb-4">
-                    <div className="col-md-12">
-                        <div className="card shadow-sm">
-                            <div className="card-body">
-                                <h5 className="card-title">Account Information</h5>
-                                <div className="row">
-                                    <div className="col-md-4">
-                                        <p className="mb-2">
-                                            <strong>Name:</strong> {user.name}
-                                        </p>
-                                    </div>
-                                    <div className="col-md-4">
-                                        <p className="mb-2">
-                                            <strong>Email:</strong> {user.email}
-                                        </p>
-                                    </div>
-                                    <div className="col-md-4">
-                                        <p className="mb-2">
-                                            <strong>Role:</strong>{' '}
-                                            <span className={`badge ${
-                                                user.role === 'admin' ? 'bg-danger' :
-                                                    user.role === 'manager' ? 'bg-warning' :
-                                                        user.role === 'agent' ? 'bg-info' :
-                                                            'bg-secondary'
-                                            }`}>
-                                                {user.role.toUpperCase()}
-                                            </span>
-                                        </p>
-                                    </div>
+                {/* Stats */}
+                {!loading && tickets.length > 0 && (
+                    <div className="row mb-4">
+                        <div className="col-md-3">
+                            <div className="card text-center shadow-sm border-0">
+                                <div className="card-body">
+                                    <h3 className="text-primary mb-0">{tickets.length}</h3>
+                                    <small className="text-muted">Total Tickets</small>
+                                </div>
+                            </div>
+                        </div>
+                        <div className="col-md-3">
+                            <div className="card text-center shadow-sm border-0">
+                                <div className="card-body">
+                                    <h3 className="text-success mb-0">
+                                        {tickets.filter(t => t.status.slug === 'open').length}
+                                    </h3>
+                                    <small className="text-muted">Open</small>
+                                </div>
+                            </div>
+                        </div>
+                        <div className="col-md-3">
+                            <div className="card text-center shadow-sm border-0">
+                                <div className="card-body">
+                                    <h3 className="text-info mb-0">
+                                        {tickets.filter(t => t.status.slug === 'in_progress').length}
+                                    </h3>
+                                    <small className="text-muted">In Progress</small>
+                                </div>
+                            </div>
+                        </div>
+                        <div className="col-md-3">
+                            <div className="card text-center shadow-sm border-0">
+                                <div className="card-body">
+                                    <h3 className="text-secondary mb-0">
+                                        {tickets.filter(t => t.status.slug === 'closed').length}
+                                    </h3>
+                                    <small className="text-muted">Closed</small>
                                 </div>
                             </div>
                         </div>
                     </div>
-                </div>
+                )}
 
                 {/* Tickets List */}
                 <div className="row">
                     <div className="col-md-12">
-                        <div className="card shadow-sm">
-                            <div className="card-header bg-white">
-                                <h5 className="mb-0">Tickets</h5>
+                        <div className="card shadow-sm border-0">
+                            <div className="card-header bg-white border-bottom">
+                                <h5 className="mb-0">
+                                    <i className="bi bi-list-ul me-2"></i>
+                                    Tickets
+                                </h5>
                             </div>
                             <div className="card-body">
-                                <div className="alert alert-info" role="alert">
-                                    <i className="bi bi-info-circle me-2"></i>
-                                    No tickets found. Create your first ticket to get started!
-                                </div>
-
-                                {/* Sample Tickets */}
-                                <div className="list-group">
-                                    <div className="list-group-item list-group-item-action">
-                                        <div className="d-flex w-100 justify-content-between">
-                                            <h6 className="mb-1">Sample: Login Issue</h6>
-                                            <small className="text-muted">2 hours ago</small>
-                                        </div>
-                                        <p className="mb-1 text-muted">
-                                            Cannot log in to my account...
-                                        </p>
-                                        <div className="d-flex gap-2 mt-2">
-                                            <span className="badge bg-success">Open</span>
-                                            <span className="badge bg-warning text-dark">Medium</span>
-                                            <span className="badge bg-secondary">Support</span>
-                                        </div>
+                                {error && (
+                                    <div className="alert alert-danger" role="alert">
+                                        <i className="bi bi-exclamation-triangle me-2"></i>
+                                        {error}
                                     </div>
+                                )}
 
-                                    <div className="list-group-item list-group-item-action">
-                                        <div className="d-flex w-100 justify-content-between">
-                                            <h6 className="mb-1">Sample: Payment Error</h6>
-                                            <small className="text-muted">5 hours ago</small>
+                                {loading ? (
+                                    <div className="text-center py-5">
+                                        <div className="spinner-border text-primary" role="status">
+                                            <span className="visually-hidden">Loading...</span>
                                         </div>
-                                        <p className="mb-1 text-muted">
-                                            Getting 500 error on payment...
-                                        </p>
-                                        <div className="d-flex gap-2 mt-2">
-                                            <span className="badge bg-info">In Progress</span>
-                                            <span className="badge bg-danger">High</span>
-                                            <span className="badge bg-secondary">Billing</span>
-                                        </div>
+                                        <p className="mt-2 text-muted">Loading tickets...</p>
                                     </div>
-
-                                    <div className="list-group-item list-group-item-action">
-                                        <div className="d-flex w-100 justify-content-between">
-                                            <h6 className="mb-1">Sample: Feature Request</h6>
-                                            <small className="text-muted">1 day ago</small>
-                                        </div>
-                                        <p className="mb-1 text-muted">
-                                            Need dark mode option...
-                                        </p>
-                                        <div className="d-flex gap-2 mt-2">
-                                            <span className="badge bg-secondary">Closed</span>
-                                            <span className="badge bg-success">Low</span>
-                                            <span className="badge bg-secondary">Development</span>
-                                        </div>
+                                ) : tickets.length === 0 ? (
+                                    <div className="text-center py-5">
+                                        <i className="bi bi-inbox text-muted" style={{ fontSize: '4rem' }}></i>
+                                        <p className="text-muted mt-3">No tickets found</p>
+                                        {user.role === 'customer' && (
+                                            <button
+                                                className="btn btn-primary mt-2"
+                                                onClick={() => setShowCreateModal(true)}
+                                            >
+                                                <i className="bi bi-plus-circle me-2"></i>
+                                                Create Your First Ticket
+                                            </button>
+                                        )}
                                     </div>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
+                                ) : (
+                                    <div className="list-group list-group-flush">
+                                        {tickets.map((ticket) => (
+                                            <div key={ticket.id} className="list-group-item border-bottom py-3">
+                                                <div className="row align-items-center">
+                                                    <div className="col-md-8">
+                                                        <div className="d-flex justify-content-between align-items-start">
+                                                            <div>
+                                                                <h6 className="mb-1">
+                                                                    <i className="bi bi-ticket-detailed me-2 text-primary"></i>
+                                                                    {ticket.title}
+                                                                </h6>
+                                                                <p className="mb-2 text-muted small">
+                                                                    {ticket.description.substring(0, 150)}
+                                                                    {ticket.description.length > 150 ? '...' : ''}
+                                                                </p>
+                                                                <div className="d-flex gap-2 flex-wrap">
+                                                                    <span className={`badge ${getStatusBadgeClass(ticket.status.slug)}`}>
+                                                                        {ticket.status.name}
+                                                                    </span>
+                                                                    <span className={`badge ${getPriorityBadgeClass(ticket.priority.level)}`}>
+                                                                        {ticket.priority.name}
+                                                                    </span>
+                                                                    <span className="badge bg-secondary">
+                                                                        <i className="bi bi-people me-1"></i>
+                                                                        {ticket.team.name}
+                                                                    </span>
+                                                                    {ticket.assignee ? (
+                                                                        <span className="badge bg-dark">
+                                                                            <i className="bi bi-person-check me-1"></i>
+                                                                            {ticket.assignee.name}
+                                                                        </span>
+                                                                    ) : (
+                                                                        <span className="badge bg-warning text-dark">
+                                                                            <i className="bi bi-person-x me-1"></i>
+                                                                            Unassigned
+                                                                        </span>
+                                                                    )}
+                                                                    <small className="text-muted ms-2">
+                                                                        <i className="bi bi-clock me-1"></i>
+                                                                        {formatDate(ticket.created_at)}
+                                                                    </small>
+                                                                </div>
+                                                            </div>
+                                                        </div>
+                                                    </div>
 
-                {/* Stats */}
-                <div className="row mt-4">
-                    <div className="col-md-3">
-                        <div className="card text-center shadow-sm">
-                            <div className="card-body">
-                                <h3 className="text-primary">12</h3>
-                                <p className="text-muted mb-0">Total</p>
-                            </div>
-                        </div>
-                    </div>
-                    <div className="col-md-3">
-                        <div className="card text-center shadow-sm">
-                            <div className="card-body">
-                                <h3 className="text-success">5</h3>
-                                <p className="text-muted mb-0">Open</p>
-                            </div>
-                        </div>
-                    </div>
-                    <div className="col-md-3">
-                        <div className="card text-center shadow-sm">
-                            <div className="card-body">
-                                <h3 className="text-info">4</h3>
-                                <p className="text-muted mb-0">In Progress</p>
-                            </div>
-                        </div>
-                    </div>
-                    <div className="col-md-3">
-                        <div className="card text-center shadow-sm">
-                            <div className="card-body">
-                                <h3 className="text-secondary">3</h3>
-                                <p className="text-muted mb-0">Closed</p>
+                                                    <div className="col-md-4 text-end">
+                                                        {/* Don't show any controls if ticket is closed */}
+                                                        {ticket.status.slug !== 'closed' ? (
+                                                            <div className="btn-group btn-group-sm" role="group">
+                                                                {/* Edit Button */}
+                                                                {canEditTicket(ticket) && (
+                                                                    <button
+                                                                        className="btn btn-outline-primary"
+                                                                        onClick={() => handleEditClick(ticket)}
+                                                                        title="Edit ticket"
+                                                                    >
+                                                                        <i className="bi bi-pencil me-1"></i>
+                                                                        Edit
+                                                                    </button>
+                                                                )}
+
+                                                                {/* Change Status Button */}
+                                                                {canChangeStatus(ticket) && (
+                                                                    <button
+                                                                        className="btn btn-outline-info"
+                                                                        onClick={() => handleStatusClick(ticket)}
+                                                                        title="Change status"
+                                                                    >
+                                                                        <i className="bi bi-arrow-repeat me-1"></i>
+                                                                        Status
+                                                                    </button>
+                                                                )}
+
+                                                                {/* Assign Button - Only show if unassigned */}
+                                                                {canAssignTicket() && !ticket.assignee && (
+                                                                    <button
+                                                                        className="btn btn-outline-success"
+                                                                        onClick={() => handleAssignClick(ticket)}
+                                                                        title="Assign to agent"
+                                                                    >
+                                                                        <i className="bi bi-person-plus me-1"></i>
+                                                                        Assign
+                                                                    </button>
+                                                                )}
+
+                                                                {/* Re-assign Button - Show if already assigned */}
+                                                                {canAssignTicket() && ticket.assignee && (
+                                                                    <button
+                                                                        className="btn btn-outline-warning"
+                                                                        onClick={() => handleAssignClick(ticket)}
+                                                                        title="Re-assign ticket"
+                                                                    >
+                                                                        <i className="bi bi-arrow-repeat me-1"></i>
+                                                                        Re-assign
+                                                                    </button>
+                                                                )}
+                                                            </div>
+                                                        ) : (
+                                                            <span className="badge bg-secondary">
+                                                                <i className="bi bi-lock me-1"></i>
+                                                                Closed
+                                                            </span>
+                                                        )}
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        ))}
+                                    </div>
+                                )}
                             </div>
                         </div>
                     </div>
                 </div>
             </div>
+
+            {/* Modals */}
+            <CreateTicketModal
+                show={showCreateModal}
+                onClose={() => setShowCreateModal(false)}
+                onSuccess={handleTicketUpdated}
+            />
+
+            <AssignTicketModal
+                show={showAssignModal}
+                ticket={selectedTicket}
+                onClose={() => {
+                    setShowAssignModal(false);
+                    setSelectedTicket(null);
+                }}
+                onSuccess={handleTicketUpdated}
+            />
+
+            <EditTicketModal
+                show={showEditModal}
+                ticket={selectedTicket}
+                canChangePriority={canChangePriority()}
+                onClose={() => {
+                    setShowEditModal(false);
+                    setSelectedTicket(null);
+                }}
+                onSuccess={handleTicketUpdated}
+            />
+
+            <ChangeStatusModal
+                show={showStatusModal}
+                ticket={selectedTicket}
+                onClose={() => {
+                    setShowStatusModal(false);
+                    setSelectedTicket(null);
+                }}
+                onSuccess={handleTicketUpdated}
+            />
         </div>
     );
 }
