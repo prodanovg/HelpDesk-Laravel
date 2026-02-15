@@ -27,6 +27,8 @@ class TeamController extends Controller
      */
     public function store(StoreTeamRequest $request)
     {
+        $this->authorize('create', Team::class);
+
         $team = Team::create($request->validated());
 
         return new TeamResource($team);
@@ -37,6 +39,8 @@ class TeamController extends Controller
      */
     public function show(Team $team)
     {
+        $this->authorize('view', $team);
+
         $team->load('tickets');
 
         return new TeamResource($team);
@@ -47,6 +51,8 @@ class TeamController extends Controller
      */
     public function update(UpdateTeamRequest $request, Team $team)
     {
+        $this->authorize('update', $team);
+
         $team->update($request->validated());
 
         return new TeamResource($team);
@@ -57,7 +63,7 @@ class TeamController extends Controller
      */
     public function destroy(Team $team)
     {
-        $this->authorize('delete', Team::class);
+        $this->authorize('delete', $team);
 
         if ($team->tickets()->count() > 0) {
             return response()->json([

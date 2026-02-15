@@ -50,6 +50,11 @@ export default function Tickets() {
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState('');
 
+    // Filter states
+    const [filterStatus, setFilterStatus] = useState<string>('all');
+    const [filterPriority, setFilterPriority] = useState<string>('all');
+    const [filterAssignee, setFilterAssignee] = useState<string>('all');
+
     // Modal states
     const [showCreateModal, setShowCreateModal] = useState(false);
     const [showAssignModal, setShowAssignModal] = useState(false);
@@ -107,31 +112,42 @@ export default function Tickets() {
         }
     };
 
+    const handleDeleteTicket = async (ticketId: number) => {
+        if (!window.confirm('Are you sure you want to delete this ticket? This action cannot be undone.')) {
+            return;
+        }
+
+        try {
+            await api.delete(`/api/tickets/${ticketId}`);
+            fetchTickets();
+        } catch (err) {
+            console.error('Error deleting ticket:', err);
+            alert('Failed to delete ticket');
+        }
+    };
+
+    // Filter tickets
+    const filteredTickets = tickets.filter(ticket => {
+        if (filterStatus !== 'all' && ticket.status.slug !== filterStatus) return false;
+        if (filterPriority !== 'all' && ticket.priority.id.toString() !== filterPriority) return false;
+        if (filterAssignee === 'unassigned' && ticket.assignee) return false;
+        if (filterAssignee === 'assigned' && !ticket.assignee) return false;
+        return true;
+    });
+
     // Permission checks
     const canEditTicket = (ticket: Ticket): boolean => {
         if (!user) return false;
-
-        // Admins and managers can edit any ticket
         if (user.role === 'admin' || user.role === 'manager') return true;
-
-        // Agents can edit tickets assigned to them
         if (user.role === 'agent' && ticket.assigned_to === user.id) return true;
-
-        // Customers can edit their own tickets
         if (user.role === 'customer' && ticket.user_id === user.id) return true;
-
         return false;
     };
 
     const canChangeStatus = (ticket: Ticket): boolean => {
         if (!user) return false;
-
-        // Admins and managers can change any ticket status
         if (user.role === 'admin' || user.role === 'manager') return true;
-
-        // Agents can change status of tickets assigned to them
         if (user.role === 'agent' && ticket.assigned_to === user.id) return true;
-
         return false;
     };
 
@@ -216,6 +232,25 @@ export default function Tickets() {
                         <strong>Helpdesk System</strong>
                     </a>
                     <div className="d-flex align-items-center">
+                        {user.role === 'admin' && (
+                            <>
+                                <button
+                                    className="btn btn-outline-light btn-sm me-2"
+                                    onClick={() => navigate('/users')}
+                                >
+                                    <i className="bi bi-people me-1"></i>
+                                    Users
+                                </button>
+                                <button
+                                    className="btn btn-outline-light btn-sm me-2"
+                                    onClick={() => navigate('/teams')}
+                                >
+                                    <i className="bi bi-people-fill me-1"></i>
+                                    Teams
+                                </button>
+                            </>
+                        )}
+
                         <span className="text-white me-3">
                             <i className="bi bi-person-circle me-2"></i>
                             <strong>{user.name}</strong>
@@ -258,7 +293,7 @@ export default function Tickets() {
                         <div className="col-md-3">
                             <div className="card text-center shadow-sm border-0">
                                 <div className="card-body">
-                                    <h3 className="text-primary mb-0">{tickets.length}</h3>
+                                    <h3 className="text-primary mb-0">{filteredTickets.length}</h3>
                                     <small className="text-muted">Total Tickets</small>
                                 </div>
                             </div>
@@ -267,7 +302,7 @@ export default function Tickets() {
                             <div className="card text-center shadow-sm border-0">
                                 <div className="card-body">
                                     <h3 className="text-success mb-0">
-                                        {tickets.filter(t => t.status.slug === 'open').length}
+                                        {filteredTickets.filter(t => t.status.slug === 'open').length}
                                     </h3>
                                     <small className="text-muted">Open</small>
                                 </div>
@@ -277,7 +312,7 @@ export default function Tickets() {
                             <div className="card text-center shadow-sm border-0">
                                 <div className="card-body">
                                     <h3 className="text-info mb-0">
-                                        {tickets.filter(t => t.status.slug === 'in_progress').length}
+                                        {filteredTickets.filter(t => t.status.slug === 'in_progress').length}
                                     </h3>
                                     <small className="text-muted">In Progress</small>
                                 </div>
@@ -287,7 +322,7 @@ export default function Tickets() {
                             <div className="card text-center shadow-sm border-0">
                                 <div className="card-body">
                                     <h3 className="text-secondary mb-0">
-                                        {tickets.filter(t => t.status.slug === 'closed').length}
+                                        {filteredTickets.filter(t => t.status.slug === 'closed').length}
                                     </h3>
                                     <small className="text-muted">Closed</small>
                                 </div>
@@ -295,6 +330,87 @@ export default function Tickets() {
                         </div>
                     </div>
                 )}
+
+                {/* Filters */}
+                <div className="row mb-3">
+                    <div className="col-md-12">
+                        <div className="card border-0 shadow-sm">
+                            <div className="card-body">
+                                <div className="row g-3">
+                                    <div className="col-md-4">
+                                        <label className="form-label fw-semibold small">
+                                            <i className="bi bi-funnel me-1"></i>
+                                            Filter by Status
+                                        </label>
+                                        <select
+                                            className="form-select form-select-sm"
+                                            value={filterStatus}
+                                            onChange={(e) => setFilterStatus(e.target.value)}
+                                        >
+                                            <option value="all">All Statuses</option>
+                                            <option value="open">Open</option>
+                                            <option value="in_progress">In Progress</option>
+                                            <option value="closed">Closed</option>
+                                        </select>
+                                    </div>
+
+                                    <div className="col-md-4">
+                                        <label className="form-label fw-semibold small">
+                                            <i className="bi bi-flag me-1"></i>
+                                            Filter by Priority
+                                        </label>
+                                        <select
+                                            className="form-select form-select-sm"
+                                            value={filterPriority}
+                                            onChange={(e) => setFilterPriority(e.target.value)}
+                                        >
+                                            <option value="all">All Priorities</option>
+                                            <option value="1">Low</option>
+                                            <option value="2">Medium</option>
+                                            <option value="3">High</option>
+                                            <option value="4">Critical</option>
+                                        </select>
+                                    </div>
+
+                                    <div className="col-md-4">
+                                        <label className="form-label fw-semibold small">
+                                            <i className="bi bi-person me-1"></i>
+                                            Filter by Assignment
+                                        </label>
+                                        <select
+                                            className="form-select form-select-sm"
+                                            value={filterAssignee}
+                                            onChange={(e) => setFilterAssignee(e.target.value)}
+                                        >
+                                            <option value="all">All Tickets</option>
+                                            <option value="assigned">Assigned</option>
+                                            <option value="unassigned">Unassigned</option>
+                                        </select>
+                                    </div>
+                                </div>
+
+                                {(filterStatus !== 'all' || filterPriority !== 'all' || filterAssignee !== 'all') && (
+                                    <div className="mt-3">
+                                        <button
+                                            className="btn btn-sm btn-outline-secondary"
+                                            onClick={() => {
+                                                setFilterStatus('all');
+                                                setFilterPriority('all');
+                                                setFilterAssignee('all');
+                                            }}
+                                        >
+                                            <i className="bi bi-x-circle me-1"></i>
+                                            Clear Filters
+                                        </button>
+                                        <span className="ms-2 text-muted small">
+                                            Showing {filteredTickets.length} of {tickets.length} tickets
+                                        </span>
+                                    </div>
+                                )}
+                            </div>
+                        </div>
+                    </div>
+                </div>
 
                 {/* Tickets List */}
                 <div className="row">
@@ -321,23 +437,42 @@ export default function Tickets() {
                                         </div>
                                         <p className="mt-2 text-muted">Loading tickets...</p>
                                     </div>
-                                ) : tickets.length === 0 ? (
+                                ) : filteredTickets.length === 0 ? (
                                     <div className="text-center py-5">
                                         <i className="bi bi-inbox text-muted" style={{ fontSize: '4rem' }}></i>
-                                        <p className="text-muted mt-3">No tickets found</p>
-                                        {user.role === 'customer' && (
-                                            <button
-                                                className="btn btn-primary mt-2"
-                                                onClick={() => setShowCreateModal(true)}
-                                            >
-                                                <i className="bi bi-plus-circle me-2"></i>
-                                                Create Your First Ticket
-                                            </button>
+                                        {tickets.length === 0 ? (
+                                            <>
+                                                <p className="text-muted mt-3">No tickets found</p>
+                                                {user.role === 'customer' && (
+                                                    <button
+                                                        className="btn btn-primary mt-2"
+                                                        onClick={() => setShowCreateModal(true)}
+                                                    >
+                                                        <i className="bi bi-plus-circle me-2"></i>
+                                                        Create Your First Ticket
+                                                    </button>
+                                                )}
+                                            </>
+                                        ) : (
+                                            <>
+                                                <p className="text-muted mt-3">No tickets match your filters</p>
+                                                <button
+                                                    className="btn btn-outline-secondary mt-2"
+                                                    onClick={() => {
+                                                        setFilterStatus('all');
+                                                        setFilterPriority('all');
+                                                        setFilterAssignee('all');
+                                                    }}
+                                                >
+                                                    <i className="bi bi-x-circle me-2"></i>
+                                                    Clear Filters
+                                                </button>
+                                            </>
                                         )}
                                     </div>
                                 ) : (
                                     <div className="list-group list-group-flush">
-                                        {tickets.map((ticket) => (
+                                        {filteredTickets.map((ticket) => (
                                             <div key={ticket.id} className="list-group-item border-bottom py-3">
                                                 <div className="row align-items-center">
                                                     <div className="col-md-8">
@@ -383,10 +518,8 @@ export default function Tickets() {
                                                     </div>
 
                                                     <div className="col-md-4 text-end">
-                                                        {/* Don't show any controls if ticket is closed */}
                                                         {ticket.status.slug !== 'closed' ? (
                                                             <div className="btn-group btn-group-sm" role="group">
-                                                                {/* Edit Button */}
                                                                 {canEditTicket(ticket) && (
                                                                     <button
                                                                         className="btn btn-outline-primary"
@@ -398,7 +531,6 @@ export default function Tickets() {
                                                                     </button>
                                                                 )}
 
-                                                                {/* Change Status Button */}
                                                                 {canChangeStatus(ticket) && (
                                                                     <button
                                                                         className="btn btn-outline-info"
@@ -410,7 +542,6 @@ export default function Tickets() {
                                                                     </button>
                                                                 )}
 
-                                                                {/* Assign Button - Only show if unassigned */}
                                                                 {canAssignTicket() && !ticket.assignee && (
                                                                     <button
                                                                         className="btn btn-outline-success"
@@ -422,7 +553,6 @@ export default function Tickets() {
                                                                     </button>
                                                                 )}
 
-                                                                {/* Re-assign Button - Show if already assigned */}
                                                                 {canAssignTicket() && ticket.assignee && (
                                                                     <button
                                                                         className="btn btn-outline-warning"
@@ -433,12 +563,34 @@ export default function Tickets() {
                                                                         Re-assign
                                                                     </button>
                                                                 )}
+
+                                                                {user.role === 'admin' && (
+                                                                    <button
+                                                                        className="btn btn-outline-danger"
+                                                                        onClick={() => handleDeleteTicket(ticket.id)}
+                                                                        title="Delete ticket"
+                                                                    >
+                                                                        <i className="bi bi-trash me-1"></i>
+                                                                        Delete
+                                                                    </button>
+                                                                )}
                                                             </div>
                                                         ) : (
-                                                            <span className="badge bg-secondary">
-                                                                <i className="bi bi-lock me-1"></i>
-                                                                Closed
-                                                            </span>
+                                                            <div className="d-flex gap-2 justify-content-end">
+                                                                <span className="badge bg-secondary">
+                                                                    <i className="bi bi-lock me-1"></i>
+                                                                    Closed
+                                                                </span>
+                                                                {user.role === 'admin' && (
+                                                                    <button
+                                                                        className="btn btn-sm btn-outline-danger"
+                                                                        onClick={() => handleDeleteTicket(ticket.id)}
+                                                                        title="Delete ticket"
+                                                                    >
+                                                                        <i className="bi bi-trash"></i>
+                                                                    </button>
+                                                                )}
+                                                            </div>
                                                         )}
                                                     </div>
                                                 </div>

@@ -9,8 +9,8 @@ class UpdateTeamRequest extends FormRequest
 {
     public function authorize(): bool
     {
-        return $this->user()->can('update', Team::class);
-    }
+        $team = $this->route('team');
+        return $this->user()->can('update', $team);    }
 
     public function rules(): array
     {

@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\AIController;
 use App\Http\Controllers\AuthController;
 use App\Http\Controllers\TeamController;
 use App\Http\Controllers\TicketController;
@@ -27,7 +28,12 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::patch('/tickets/{ticket}/status', [TicketController::class, 'updateStatus']);
     Route::patch('/tickets/{ticket}/priority', [TicketController::class, 'updatePriority']);
 
+    // Team routes
     Route::get('/teams', [TeamController::class, 'index']);
+    Route::post('/teams', [TeamController::class, 'store']);
+    Route::get('/teams/{team}', [TeamController::class, 'show']);
+    Route::put('/teams/{team}', [TeamController::class, 'update']);
+    Route::delete('/teams/{team}', [TeamController::class, 'destroy']);
 
     // User routes
     Route::apiResource('users', UserController::class)
@@ -42,4 +48,8 @@ Route::middleware('auth:sanctum')->group(function () {
 
     Route::apiResource('ticket-priorities', TicketPriorityController::class)
         ->only(['index', 'show']);
+
+    //Ai controller
+    Route::post('/ai/suggest-ticket-classification', [AIController::class, 'suggestTicketClassification']);
+
 });

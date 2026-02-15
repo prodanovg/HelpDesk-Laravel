@@ -12,6 +12,13 @@ interface Priority {
     level: number;
 }
 
+interface AISuggestion {
+    team_id: number;
+    priority_id: number;
+    confidence: string;
+    reasoning: string;
+}
+
 interface CreateTicketModalProps {
     show: boolean;
     onClose: () => void;
@@ -30,6 +37,10 @@ export default function CreateTicketModal({ show, onClose, onSuccess }: CreateTi
         team_id: '',
         ticket_priority_id: '',
     });
+
+    const [aiSuggestion, setAiSuggestion] = useState<AISuggestion | null>(null);
+    const [aiLoading, setAiLoading] = useState(false);
+    const [showAiSuggestion, setShowAiSuggestion] = useState(false);
 
     useEffect(() => {
         if (show) {
@@ -51,6 +62,49 @@ export default function CreateTicketModal({ show, onClose, onSuccess }: CreateTi
         }
     };
 
+    const handleGetAISuggestion = async () => {
+        if (!formData.title || !formData.description) {
+            setError('Please enter title and description first');
+            return;
+        }
+
+        setAiLoading(true);
+        setError('');
+
+        try {
+            const response = await api.post('/api/ai/suggest-ticket-classification', {
+                title: formData.title,
+                description: formData.description,
+            });
+
+            const suggestion = response.data.suggestion;
+            setAiSuggestion(suggestion);
+            setShowAiSuggestion(true);
+
+        } catch (err: unknown) {
+            console.error('Error getting AI suggestion:', err);
+            if (err && typeof err === 'object' && 'response' in err) {
+                const error = err as { response?: { data?: { message?: string } } };
+                setError(error.response?.data?.message || 'Failed to get AI suggestion');
+            } else {
+                setError('Failed to get AI suggestion');
+            }
+        } finally {
+            setAiLoading(false);
+        }
+    };
+
+    const handleApplyAISuggestion = () => {
+        if (aiSuggestion) {
+            setFormData({
+                ...formData,
+                team_id: aiSuggestion.team_id.toString(),
+                ticket_priority_id: aiSuggestion.priority_id.toString(),
+            });
+            setShowAiSuggestion(false);
+        }
+    };
+
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         setLoading(true);
@@ -64,13 +118,14 @@ export default function CreateTicketModal({ show, onClose, onSuccess }: CreateTi
                 ticket_priority_id: parseInt(formData.ticket_priority_id),
             });
 
-            // Reset form
             setFormData({
                 title: '',
                 description: '',
                 team_id: '',
                 ticket_priority_id: '',
             });
+            setAiSuggestion(null);
+            setShowAiSuggestion(false);
 
             onSuccess();
             onClose();
@@ -92,6 +147,18 @@ export default function CreateTicketModal({ show, onClose, onSuccess }: CreateTi
             ...formData,
             [e.target.name]: e.target.value,
         });
+        if (e.target.name === 'title' || e.target.name === 'description') {
+            setShowAiSuggestion(false);
+        }
+    };
+
+    const getConfidenceBadgeClass = (confidence: string) => {
+        switch (confidence) {
+            case 'high': return 'bg-success';
+            case 'medium': return 'bg-warning text-dark';
+            case 'low': return 'bg-secondary';
+            default: return 'bg-info';
+        }
     };
 
     if (!show) return null;
@@ -171,6 +238,68 @@ export default function CreateTicketModal({ show, onClose, onSuccess }: CreateTi
                                 </small>
                             </div>
 
+                            <div className="mb-3">
+                                <button
+                                    type="button"
+                                    className="btn btn-outline-primary w-100"
+                                    onClick={handleGetAISuggestion}
+                                    disabled={aiLoading || !formData.title || !formData.description}
+                                >
+                                    {aiLoading ? (
+                                        <>
+                                            <span className="spinner-border spinner-border-sm me-2"></span>
+                                            AI is analyzing...
+                                        </>
+                                    ) : (
+                                        <>
+                                            <i className="bi bi-stars me-2"></i>
+                                            Get AI Suggestion
+                                        </>
+                                    )}
+                                </button>
+                            </div>
+
+                            {showAiSuggestion && aiSuggestion && (
+                                <div className="alert alert-info border-info">
+                                    <div className="d-flex align-items-start">
+                                        <i className="bi bi-robot fs-3 me-3"></i>
+                                        <div className="flex-grow-1">
+                                            <h6 className="alert-heading">
+                                                <i className="bi bi-stars me-2"></i>
+                                                AI Suggestion
+                                                <span className={`badge ${getConfidenceBadgeClass(aiSuggestion.confidence)} ms-2`}>
+                                                    {aiSuggestion.confidence} confidence
+                                                </span>
+                                            </h6>
+                                            <p className="mb-2">
+                                                <strong>Team:</strong> {teams.find(t => t.id === aiSuggestion.team_id)?.name}
+                                                <br />
+                                                <strong>Priority:</strong> {priorities.find(p => p.id === aiSuggestion.priority_id)?.name}
+                                            </p>
+                                            <p className="mb-3 small text-muted">
+                                                <i className="bi bi-lightbulb me-1"></i>
+                                                {aiSuggestion.reasoning}
+                                            </p>
+                                            <button
+                                                type="button"
+                                                className="btn btn-sm btn-primary me-2"
+                                                onClick={handleApplyAISuggestion}
+                                            >
+                                                <i className="bi bi-check-circle me-1"></i>
+                                                Apply Suggestion
+                                            </button>
+                                            <button
+                                                type="button"
+                                                className="btn btn-sm btn-outline-secondary"
+                                                onClick={() => setShowAiSuggestion(false)}
+                                            >
+                                                Dismiss
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
+                            )}
+
                             <div className="row">
                                 <div className="col-md-6">
                                     <div className="mb-3">
@@ -193,6 +322,12 @@ export default function CreateTicketModal({ show, onClose, onSuccess }: CreateTi
                                                 </option>
                                             ))}
                                         </select>
+                                        {formData.team_id && aiSuggestion && parseInt(formData.team_id) === aiSuggestion.team_id && (
+                                            <small className="text-success">
+                                                <i className="bi bi-stars me-1"></i>
+                                                AI suggested
+                                            </small>
+                                        )}
                                     </div>
                                 </div>
 
@@ -217,9 +352,12 @@ export default function CreateTicketModal({ show, onClose, onSuccess }: CreateTi
                                                 </option>
                                             ))}
                                         </select>
-                                        <small className="text-muted">
-                                            Select based on urgency and impact
-                                        </small>
+                                        {formData.ticket_priority_id && aiSuggestion && parseInt(formData.ticket_priority_id) === aiSuggestion.priority_id && (
+                                            <small className="text-success">
+                                                <i className="bi bi-stars me-1"></i>
+                                                AI suggested
+                                            </small>
+                                        )}
                                     </div>
                                 </div>
                             </div>

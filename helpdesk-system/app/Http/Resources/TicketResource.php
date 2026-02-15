@@ -18,42 +18,32 @@ class TicketResource extends JsonResource
             'created_at' => $this->created_at?->toISOString(),
             'updated_at' => $this->updated_at?->toISOString(),
 
-            'status' => $this->whenLoaded('status', function () {
-                return [
-                    'id' => $this->status->id,
-                    'name' => $this->status->name,
-                    'slug' => $this->status->slug,
-                ];
-            }),
+            'status' => [
+                'id' => $this->status->id,
+                'name' => $this->status->name,
+                'slug' => $this->status->slug,
+            ],
 
-            'priority' => $this->whenLoaded('priority', function () {
-                return [
-                    'id' => $this->priority->id,
-                    'name' => $this->priority->name,
-                    'level' => $this->priority->level,
-                ];
-            }),
+            'priority' => [
+                'id' => $this->priority->id,
+                'name' => $this->priority->name,
+                'level' => $this->priority->level,
+            ],
 
-            'team' => $this->whenLoaded('team', function () {
-                return [
-                    'id' => $this->team->id,
-                    'name' => $this->team->name,
-                ];
-            }),
+            'team' => [
+                'id' => $this->team->id,
+                'name' => $this->team->name,
+            ],
 
-            'user' => $this->whenLoaded('user', function () {
-                return [
-                    'id' => $this->user->id,
-                    'name' => $this->user->name,
-                ];
-            }),
+            'user' => [
+                'id' => $this->user->id,
+                'name' => $this->user->name,
+            ],
 
-            'assignee' => $this->whenLoaded('assignee', function () {
-                return $this->assignee ? [
-                    'id' => $this->assignee->id,
-                    'name' => $this->assignee->name,
-                ] : null;
-            }),
+            'assignee' => $this->assignee ? [
+                'id' => $this->assignee->id,
+                'name' => $this->assignee->name,
+            ] : null,
         ];
     }
 }

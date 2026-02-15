@@ -1,0 +1,70 @@
+version: '3.8'
+
+services:
+  db:
+    image: mysql:8.0
+    container_name: helpdesk_db
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
+      MYSQL_DATABASE: ${MYSQL_DATABASE}
+      MYSQL_USER: ${MYSQL_USER}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD}
+    ports:
+      - "3307:3306"
+    volumes:
+      - mysql_data:/var/lib/mysql
+    networks:
+      - helpdesk_network
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  backend:
+    build:
+      context: ./helpdesk-system
+      dockerfile: Dockerfile
+    container_name: helpdesk_backend
+    ports:
+      - "8000:8000"
+    environment:
+      DB_HOST: db
+      DB_PORT: 3306
+      DB_DATABASE: helpdesk
+      DB_USERNAME: helpdesk_user
+      DB_PASSWORD: secret
+    depends_on:
+      db:
+        condition: service_healthy
+    volumes:
+      - ./helpdesk-system:/var/www
+      - ./helpdesk-system/storage:/var/www/storage
+    networks:
+      - helpdesk_network
+    command: >
+      sh -c "
+        sleep 5 &&
+        php artisan migrate --force &&
+        php artisan db:seed --force &&
+        php artisan serve --host=0.0.0.0 --port=8000
+      "
+
+  frontend:
+    build:
+      context: ./ticketing-frontend
+      dockerfile: Dockerfile
+    container_name: helpdesk_frontend
+    ports:
+      - "80:80"
+    depends_on:
+      - backend
+    networks:
+      - helpdesk_network
+
+volumes:
+  mysql_data:
+
+networks:
+  helpdesk_network:
+    driver: bridge

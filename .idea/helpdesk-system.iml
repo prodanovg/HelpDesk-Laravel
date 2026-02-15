@@ -129,8 +129,13 @@
       <excludeFolder url="file://$MODULE_DIR$/vendor/vlucas/phpdotenv" />
       <excludeFolder url="file://$MODULE_DIR$/vendor/voku/portable-ascii" />
       <excludeFolder url="file://$MODULE_DIR$/vendor/laravel/sanctum" />
+      <excludeFolder url="file://$MODULE_DIR$/helpdesk-system/vendor/openai-php/client" />
+      <excludeFolder url="file://$MODULE_DIR$/helpdesk-system/vendor/openai-php/laravel" />
+      <excludeFolder url="file://$MODULE_DIR$/helpdesk-system/vendor/php-http/discovery" />
+      <excludeFolder url="file://$MODULE_DIR$/helpdesk-system/vendor/php-http/multipart-stream-builder" />
     </content>
     <orderEntry type="inheritedJdk" />
     <orderEntry type="sourceFolder" forTests="false" />
+    <orderEntry type="library" name="bootstrap" level="application" />
   </component>
 </module>
