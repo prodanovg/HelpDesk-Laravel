@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Models\Team;
+use Illuminate\Support\Facades\Http;
 use App\Models\TicketPriority;
 use Exception;
 use Illuminate\Support\Facades\Log;
@@ -21,27 +22,35 @@ class TicketAIService
         $prompt = $this->buildPrompt($title, $description, $teams, $priorities);
 
         try {
-            $response = OpenAI::chat()->create([
-                'model' => 'gpt-4o-mini',
-                'messages' => [
-                    [
-                        'role' => 'system',
-                        'content' => 'You are a helpdesk ticket classification assistant. Analyze ticket descriptions and suggest the most appropriate team and priority level.'
-                    ],
-                    [
-                        'role' => 'user',
-                        'content' => $prompt
-                    ]
-                ],
-                'temperature' => 0.2,
-                'max_tokens' => 200,
+//            $response = OpenAI::chat()->create([
+//                'model' => 'gpt-4o-mini',
+//                'messages' => [
+//                    [
+//                        'role' => 'system',
+//                        'content' => 'You are a helpdesk ticket classification assistant. Analyze ticket descriptions and suggest the most appropriate team and priority level.'
+//                    ],
+//                    [
+//                        'role' => 'user',
+//                        'content' => $prompt
+//                    ]
+//                ],
+//                'temperature' => 0.2,
+//                'max_tokens' => 200,
+//            ]);
+//            $content = $response->choices[0]->message->content;
+
+
+            $response = Http::timeout(60)->post('http://ollama:11434/api/generate', [
+                'model' => 'gemma2:2b',
+                'prompt' => $prompt,
+                'stream' => false,
             ]);
 
-            $content = $response->choices[0]->message->content;
+            $content = $response->json()['response'];
 
             return $this->parseAIResponse($content, $teams, $priorities);
 
-        } catch (\Exception $e) {
+        } catch (Exception $e) {
             Log::error('OpenAI API Error: ' . $e->getMessage());
 
             return [

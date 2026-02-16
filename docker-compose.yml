@@ -16,7 +16,7 @@ services:
     networks:
       - helpdesk_network
     healthcheck:
-      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
+      test: [ "CMD", "mysqladmin", "ping", "-h", "localhost" ]
       interval: 5s
       timeout: 3s
       retries: 5
@@ -31,9 +31,9 @@ services:
     environment:
       DB_HOST: db
       DB_PORT: 3306
-      DB_DATABASE: helpdesk
-      DB_USERNAME: helpdesk_user
-      DB_PASSWORD: secret
+      DB_DATABASE: ${MYSQL_DATABASE}
+      DB_USERNAME: ${MYSQL_USER}
+      DB_PASSWORD: ${MYSQL_PASSWORD}
     depends_on:
       db:
         condition: service_healthy
@@ -62,8 +62,19 @@ services:
     networks:
       - helpdesk_network
 
+  ollama:
+    image: ollama/ollama:latest
+    container_name: helpdesk_ollama
+    volumes:
+      - ollama_data:/root/.ollama
+    ports:
+      - "11434:11434"
+    networks:
+      - helpdesk_network
+
 volumes:
   mysql_data:
+  ollama_data:
 
 networks:
   helpdesk_network:

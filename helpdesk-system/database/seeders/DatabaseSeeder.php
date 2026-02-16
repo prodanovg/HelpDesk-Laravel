@@ -17,25 +17,26 @@ class DatabaseSeeder extends Seeder
     public function run(): void
     {
         // User::factory(10)->create();
-
-        User::factory()->create([
-            'name' => 'admin',
-            'email' => 'admin@example.com',
-            'password' => 'admin',
-            'role' => 'admin',
-        ]);
-        User::factory()->create([
-            'name' => 'agent',
-            'email' => 'agent@example.com',
-            'password' => 'agent',
-            'role' => 'agent',
-        ]);
-        User::factory()->create([
-            'name' => 'manager',
-            'email' => 'manager@example.com',
-            'password' => 'manager',
-            'role' => 'manager',
-        ]);
+        if (User::count() === 0) {
+            User::factory()->create([
+                'name' => 'admin',
+                'email' => 'admin@example.com',
+                'password' => 'admin',
+                'role' => 'admin',
+            ]);
+            User::factory()->create([
+                'name' => 'agent',
+                'email' => 'agent@example.com',
+                'password' => 'agent',
+                'role' => 'agent',
+            ]);
+            User::factory()->create([
+                'name' => 'manager',
+                'email' => 'manager@example.com',
+                'password' => 'manager',
+                'role' => 'manager',
+            ]);
+        }
 
         $this->call([
             TeamSeeder::class,

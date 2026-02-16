@@ -3,7 +3,6 @@
 namespace Database\Seeders;
 
 use App\Models\TicketStatus;
-use Illuminate\Database\Console\Seeds\WithoutModelEvents;
 use Illuminate\Database\Seeder;
 
 class TicketStatusSeeder extends Seeder
@@ -13,23 +12,17 @@ class TicketStatusSeeder extends Seeder
      */
     public function run(): void
     {
-        //
-        TicketStatus::factory()->create([
-            'name' => 'Open',
-            'is_active' => true,
-            'slug' => 'open',
-        ]);
+        $statuses = [
+            ['name' => 'Open', 'slug' => 'open', 'is_active' => true],
+            ['name' => 'In Progress', 'slug' => 'in_progress', 'is_active' => true],
+            ['name' => 'Closed', 'slug' => 'closed', 'is_active' => true],
+        ];
 
-        TicketStatus::factory()->create([
-            'name' => 'In Progress',
-            'is_active' => true,
-            'slug' => 'in_progress',
-        ]);
-
-        TicketStatus::factory()->create([
-            'name' => 'Closed',
-            'is_active' => true,
-            'slug' => 'closed',
-        ]);
+        foreach ($statuses as $status) {
+            TicketStatus::firstOrCreate(
+                ['slug' => $status['slug']],
+                $status
+            );
+        }
     }
 }

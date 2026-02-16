@@ -3,7 +3,6 @@
 namespace Database\Seeders;
 
 use App\Models\TicketPriority;
-use Illuminate\Database\Console\Seeds\WithoutModelEvents;
 use Illuminate\Database\Seeder;
 
 class TicketPrioritySeeder extends Seeder
@@ -13,29 +12,18 @@ class TicketPrioritySeeder extends Seeder
      */
     public function run(): void
     {
-        TicketPriority::factory()->create([
-            'name' => 'Low',
-            'is_active' => true,
-            'level' => 1,
-        ]);
+        $priorities = [
+            ['name' => 'Low', 'level' => 1, 'is_active' => true],
+            ['name' => 'Medium', 'level' => 2, 'is_active' => true],
+            ['name' => 'High', 'level' => 3, 'is_active' => true],
+            ['name' => 'Critical', 'level' => 4, 'is_active' => true],
+        ];
 
-        TicketPriority::factory()->create([
-            'name' => 'Medium',
-            'is_active' => true,
-            'level' => 2,
-        ]);
-
-        TicketPriority::factory()->create([
-            'name' => 'High',
-            'is_active' => true,
-            'level' => 3,
-        ]);
-
-        TicketPriority::factory()->create([
-            'name' => 'Critical',
-            'is_active' => true,
-            'level' => 4,
-        ]);
-
+        foreach ($priorities as $priority) {
+            TicketPriority::firstOrCreate(
+                ['level' => $priority['level']],
+                $priority
+            );
+        }
     }
 }
