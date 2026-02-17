@@ -25,7 +25,6 @@ class AuthController extends Controller
             'role' => 'customer',
         ]);
 
-        // Delete old tokens and create new one
         $user->tokens()->delete();
         $token = $user->createToken('auth_token')->plainTextToken;
 
@@ -50,7 +49,6 @@ class AuthController extends Controller
             ]);
         }
 
-        // Delete old tokens and create new one
         $user->tokens()->delete();
         $token = $user->createToken('auth_token')->plainTextToken;
 

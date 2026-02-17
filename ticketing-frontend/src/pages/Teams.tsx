@@ -22,7 +22,6 @@ export default function Teams() {
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState('');
 
-    // Modal states
     const [showModal, setShowModal] = useState(false);
     const [editingTeam, setEditingTeam] = useState<Team | null>(null);
     const [formData, setFormData] = useState({

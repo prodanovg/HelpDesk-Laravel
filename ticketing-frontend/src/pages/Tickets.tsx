@@ -50,12 +50,10 @@ export default function Tickets() {
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState('');
 
-    // Filter states
     const [filterStatus, setFilterStatus] = useState<string>('all');
     const [filterPriority, setFilterPriority] = useState<string>('all');
     const [filterAssignee, setFilterAssignee] = useState<string>('all');
 
-    // Modal states
     const [showCreateModal, setShowCreateModal] = useState(false);
     const [showAssignModal, setShowAssignModal] = useState(false);
     const [showEditModal, setShowEditModal] = useState(false);

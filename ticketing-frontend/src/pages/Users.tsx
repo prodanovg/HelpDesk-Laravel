@@ -40,7 +40,6 @@ export default function Users() {
         try {
             const user = JSON.parse(userData);
 
-            // Only admins can access this page
             if (user.role !== 'admin') {
                 navigate('/tickets');
                 return;

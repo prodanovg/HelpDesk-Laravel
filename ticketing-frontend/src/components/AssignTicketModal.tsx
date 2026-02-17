@@ -42,7 +42,6 @@ export default function AssignTicketModal({ show, ticket, onClose, onSuccess }: 
             const response = await api.get('/api/users');
             const allUsers = response.data.data || response.data;
 
-            // Filter only agents and managers
             const availableAgents = allUsers.filter(
                 (user: Agent) => user.role === 'agent' || user.role === 'manager'
             );
@@ -127,7 +126,6 @@ export default function AssignTicketModal({ show, ticket, onClose, onSuccess }: 
                                 />
                             </div>
 
-                            {/* Show current assignee if exists */}
                             {ticket.assignee && (
                                 <div className="mb-3">
                                     <label className="form-label fw-semibold">Currently Assigned To</label>

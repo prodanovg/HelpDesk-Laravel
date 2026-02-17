@@ -67,13 +67,11 @@ export default function EditTicketModal({ show, ticket, canChangePriority, onClo
         setError('');
 
         try {
-            // Update title and description
             await api.put(`/api/tickets/${ticket.id}`, {
                 title: formData.title,
                 description: formData.description,
             });
 
-            // Update priority if allowed and changed
             if (canChangePriority && formData.ticket_priority_id !== ticket.priority.id.toString()) {
                 await api.patch(`/api/tickets/${ticket.id}/priority`, {
                     ticket_priority_id: parseInt(formData.ticket_priority_id),
