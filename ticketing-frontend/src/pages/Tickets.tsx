@@ -114,7 +114,6 @@ export default function Tickets() {
         if (!window.confirm('Are you sure you want to delete this ticket? This action cannot be undone.')) {
             return;
         }
-
         try {
             await api.delete(`/api/tickets/${ticketId}`);
             fetchTickets();
@@ -124,7 +123,6 @@ export default function Tickets() {
         }
     };
 
-    // Filter tickets
     const filteredTickets = tickets.filter(ticket => {
         if (filterStatus !== 'all' && ticket.status.slug !== filterStatus) return false;
         if (filterPriority !== 'all' && ticket.priority.id.toString() !== filterPriority) return false;
@@ -133,7 +131,6 @@ export default function Tickets() {
         return true;
     });
 
-    // Permission checks
     const canEditTicket = (ticket: Ticket): boolean => {
         if (!user) return false;
         if (user.role === 'admin' || user.role === 'manager') return true;
@@ -159,7 +156,6 @@ export default function Tickets() {
         return user.role === 'admin' || user.role === 'manager';
     };
 
-    // Modal handlers
     const handleAssignClick = (ticket: Ticket) => {
         setSelectedTicket(ticket);
         setShowAssignModal(true);
@@ -222,7 +218,6 @@ export default function Tickets() {
 
     return (
         <div className="container-fluid">
-            {/* Navbar */}
             <nav className="navbar navbar-expand-lg navbar-dark bg-primary">
                 <div className="container-fluid">
                     <a className="navbar-brand" href="#">
@@ -263,7 +258,6 @@ export default function Tickets() {
             </nav>
 
             <div className="container mt-4">
-                {/* Page Header */}
                 <div className="row mb-4">
                     <div className="col">
                         <h2>
@@ -285,7 +279,6 @@ export default function Tickets() {
                     )}
                 </div>
 
-                {/* Stats */}
                 {!loading && tickets.length > 0 && (
                     <div className="row mb-4">
                         <div className="col-md-3">
@@ -329,7 +322,6 @@ export default function Tickets() {
                     </div>
                 )}
 
-                {/* Filters */}
                 <div className="row mb-3">
                     <div className="col-md-12">
                         <div className="card border-0 shadow-sm">
@@ -410,7 +402,6 @@ export default function Tickets() {
                     </div>
                 </div>
 
-                {/* Tickets List */}
                 <div className="row">
                     <div className="col-md-12">
                         <div className="card shadow-sm border-0">
@@ -602,7 +593,6 @@ export default function Tickets() {
                 </div>
             </div>
 
-            {/* Modals */}
             <CreateTicketModal
                 show={showCreateModal}
                 onClose={() => setShowCreateModal(false)}
