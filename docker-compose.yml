@@ -34,6 +34,8 @@ services:
       DB_DATABASE: ${MYSQL_DATABASE}
       DB_USERNAME: ${MYSQL_USER}
       DB_PASSWORD: ${MYSQL_PASSWORD}
+      GROQ_API_KEY: ${GROQ_API_KEY}
+      GROQ_MODEL: ${GROQ_MODEL}
     depends_on:
       db:
         condition: service_healthy
@@ -62,15 +64,15 @@ services:
     networks:
       - helpdesk_network
 
-  ollama:
-    image: ollama/ollama:latest
-    container_name: helpdesk_ollama
-    volumes:
-      - ollama_data:/root/.ollama
-    ports:
-      - "11434:11434"
-    networks:
-      - helpdesk_network
+  #  ollama:
+  #    image: ollama/ollama:latest
+  #    container_name: helpdesk_ollama
+  #    volumes:
+  #      - ollama_data:/root/.ollama
+  #    ports:
+  #      - "11434:11434"
+  #    networks:
+  #      - helpdesk_network
 
 volumes:
   mysql_data:

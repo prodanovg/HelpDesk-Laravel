@@ -3,82 +3,173 @@
 namespace App\Services;
 
 use App\Models\Team;
-use Illuminate\Support\Facades\Http;
 use App\Models\TicketPriority;
 use Exception;
+use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
-use OpenAI\Laravel\Facades\OpenAI;
 
 class TicketAIService
 {
-    /**
-     * Analyze ticket description and suggest team and priority
-     */
-    public function analyzeTicked(string $title, string $description): array
-    {
-        $teams = Team::where('is_active', true)->get(['id', 'name', 'description']);
-        $priorities = TicketPriority::where('is_active', true)->orderBy('level')->get(['id', 'name', 'level']);
+    private const GROQ_API_URL = 'https://api.groq.com/openai/v1/chat/completions';
 
-        $prompt = $this->buildPrompt($title, $description, $teams, $priorities);
+    /**
+     * Analyze ticket and suggest routing.
+     */
+    public function analyzeTicket(string $title, string $description): array
+    {
+        $teams = Team::where('is_active', true)
+            ->get(['id', 'name', 'description']);
+
+        $priorities = TicketPriority::where('is_active', true)
+            ->orderBy('level')
+            ->get(['id', 'name', 'level']);
 
         try {
-//            $response = OpenAI::chat()->create([
-//                'model' => 'gpt-4o-mini',
-//                'messages' => [
-//                    [
-//                        'role' => 'system',
-//                        'content' => 'You are a helpdesk ticket classification assistant. Analyze ticket descriptions and suggest the most appropriate team and priority level.'
-//                    ],
-//                    [
-//                        'role' => 'user',
-//                        'content' => $prompt
-//                    ]
-//                ],
-//                'temperature' => 0.2,
-//                'max_tokens' => 200,
-//            ]);
-//            $content = $response->choices[0]->message->content;
 
+            $prompt = $this->buildPrompt(
+                $title,
+                $description,
+                $teams,
+                $priorities
+            );
 
-            $response = Http::timeout(60)->post('http://ollama:11434/api/generate', [
-                'model' => 'gemma2:2b',
-                'prompt' => $prompt,
-                'stream' => false,
-            ]);
+            $response = $this->sendRequest($prompt);
 
-            $content = $response->json()['response'];
+            $content = data_get(
+                $response->json(),
+                'choices.0.message.content'
+            );
 
-            return $this->parseAIResponse($content, $teams, $priorities);
+            if (!$content) {
+                throw new Exception('Empty AI response.');
+            }
+
+            return $this->parseResponse(
+                $content,
+                $teams,
+                $priorities
+            );
 
         } catch (Exception $e) {
-            Log::error('OpenAI API Error: ' . $e->getMessage());
 
-            return [
-                'team_id' => $teams->first()->id ?? null,
-                'priority_id' => $priorities->firstWhere('level', 2)->id ?? $priorities->first()->id,
-                'confidence' => 'low',
-                'reasoning' => 'AI analysis failed. Default suggestion provided.',
-            ];
+            Log::error('Ticket AI analysis failed', [
+                'message' => $e->getMessage(),
+            ]);
+
+            return $this->fallbackResponse($teams, $priorities);
         }
     }
 
     /**
-     * Build the prompt for OpenAI
+     * Send request to Groq API.
      */
-    private function buildPrompt(string $title, string $description, $teams, $priorities): string
+    private function sendRequest(string $prompt)
     {
+        $apiKey = trim(env('GROQ_API_KEY'));
+        Log::info('Groq model: ' . config('services.groq.model'));
+        Log::info('Groq key exists: ' . (!empty($apiKey) ? 'YES' : 'NO'));
+
+        $response = Http::withHeaders([
+            'Authorization' => 'Bearer ' . $apiKey,
+            'Content-Type' => 'application/json',
+        ])
+            ->timeout(30)
+            ->post(self::GROQ_API_URL, [
+
+                'model' => 'llama-3.3-70b-versatile',
+
+                'messages' => [
+                    [
+                        'role' => 'system',
+                        'content' => $this->systemPrompt(),
+                    ],
+                    [
+                        'role' => 'user',
+                        'content' => $prompt,
+                    ]
+                ],
+
+                'temperature' => 0.1,
+                'max_tokens' => 200,
+                'top_p' => 1,
+                'stream' => false,
+            ]);
+
+        Log::info('Groq response status: ' . $response->status());
+
+        if (!$response->successful()) {
+
+            Log::error('Groq API Error', [
+                'status' => $response->status(),
+                'body' => $response->body(),
+            ]);
+        }
+
+        return $response->throw();
+    }
+
+
+    /**
+     * System prompt.
+     */
+    private function systemPrompt(): string
+    {
+        return <<<PROMPT
+You are an enterprise helpdesk AI assistant.
+
+Your task:
+- Classify tickets
+- Select the best team
+- Select the most appropriate priority
+
+IMPORTANT:
+- Return ONLY valid JSON
+- Do not explain outside JSON
+- Do not use markdown
+
+Response format:
+
+{
+    "team_id": 1,
+    "priority_id": 2,
+    "confidence": "high",
+    "reasoning": "Short explanation"
+}
+PROMPT;
+    }
+
+    /**
+     * Build user prompt.
+     */
+    private function buildPrompt(
+        string $title,
+        string $description,
+               $teams,
+               $priorities
+    ): string
+    {
+
         $teamsList = $teams->map(function ($team) {
-            return "- {$team->name} (ID: {$team->id})" . ($team->description ? ": {$team->description}" : '');
-        })->join("\n");
+            return sprintf(
+                '- ID: %d | %s | %s',
+                $team->id,
+                $team->name,
+                $team->description ?? 'No description'
+            );
+        })->implode("\n");
 
         $prioritiesList = $priorities->map(function ($priority) {
-            return "- {$priority->name} (ID: {$priority->id}, Level: {$priority->level})";
-        })->join("\n");
+            return sprintf(
+                '- ID: %d | %s | Level: %d',
+                $priority->id,
+                $priority->name,
+                $priority->level
+            );
+        })->implode("\n");
 
         return <<<PROMPT
-Analyze this support ticket and suggest the most appropriate team and priority level.
-
-TICKET TITLE: {$title}
+TICKET TITLE:
+{$title}
 
 TICKET DESCRIPTION:
 {$description}
@@ -89,75 +180,80 @@ AVAILABLE TEAMS:
 AVAILABLE PRIORITIES:
 {$prioritiesList}
 
-Based on the ticket content, respond ONLY with a JSON object in this exact format:
-{
-    "team_id": <number>,
-    "priority_id": <number>,
-    "confidence": "<high|medium|low>",
-    "reasoning": "<brief 1-sentence explanation>"
-}
-
-Consider:
-- Keywords related to billing, payments → Billing team
-- Technical errors, bugs, crashes → Technical team
-- Account issues, login problems → Support team
-- Urgent, critical, down, not working → Higher priority
-- Question, how to, information → Lower priority
+Classification rules:
+- Billing/payment issues -> Billing team
+- Technical bugs/errors -> Technical team
+- Login/account issues -> Support team
+- Critical/down/system failure -> High priority
+- Questions/information requests -> Lower priority
 PROMPT;
     }
 
     /**
-     * Parse AI response and validate
+     * Parse AI response.
      */
-    private function parseAIResponse(string $content, $teams, $priorities): array
+    private function parseResponse(
+        string $content,
+               $teams,
+               $priorities
+    ): array
     {
-        try {
-            $content = preg_replace('/```json\s*|\s*```/', '', $content);
-            $content = trim($content);
 
-            $data = json_decode($content, true);
+        $content = trim($content);
 
-            if (!$data || !isset($data['team_id']) || !isset($data['priority_id'])) {
-                throw new \Exception('Invalid JSON response from AI');
-            }
+        // Remove markdown JSON fences if model adds them
+        $content = preg_replace('/```json|```/', '', $content);
 
-            $teamExists = $teams->contains('id', $data['team_id']);
-            if (!$teamExists) {
-                $data['team_id'] = $teams->first()->id;
-                $data['confidence'] = 'low';
-            }
+        $data = json_decode($content, true);
 
-            $priorityExists = $priorities->contains('id', $data['priority_id']);
-            if (!$priorityExists) {
-                $data['priority_id'] = $priorities->firstWhere('level', 2)->id ?? $priorities->first()->id;
-                $data['confidence'] = 'low';
-            }
-
-            return [
-                'team_id' => (int) $data['team_id'],
-                'priority_id' => (int) $data['priority_id'],
-                'confidence' => $data['confidence'] ?? 'medium',
-                'reasoning' => $data['reasoning'] ?? 'AI suggestion based on ticket content.',
-            ];
-
-        } catch (Exception $e) {
-            Log::error('OpenAI API Error: ' . $e->getMessage());
-
-            if (str_contains($e->getMessage(), 'rate limit')) {
-                return [
-                    'team_id' => $teams->first()->id ?? null,
-                    'priority_id' => $priorities->firstWhere('level', 2)->id ?? $priorities->first()->id,
-                    'confidence' => 'low',
-                    'reasoning' => '⏰ Rate limit reached. Please wait a moment and try again, or add credit to your OpenAI account.',
-                ];
-            }
-
-            return [
-                'team_id' => $teams->first()->id ?? null,
-                'priority_id' => $priorities->firstWhere('level', 2)->id ?? $priorities->first()->id,
-                'confidence' => 'low',
-                'reasoning' => 'AI analysis failed. Default suggestion provided.',
-            ];
+        if (!$data) {
+            throw new Exception('Invalid JSON returned from AI.');
         }
+
+        $teamId = (int)($data['team_id'] ?? 0);
+        $priorityId = (int)($data['priority_id'] ?? 0);
+
+        // Validate team
+        if (!$teams->contains('id', $teamId)) {
+            $teamId = $teams->first()->id;
+        }
+
+        // Validate priority
+        if (!$priorities->contains('id', $priorityId)) {
+            $priorityId =
+                $priorities->firstWhere('level', 2)->id
+                ?? $priorities->first()->id;
+        }
+
+        return [
+            'team_id' => $teamId,
+
+            'priority_id' => $priorityId,
+
+            'confidence' => $data['confidence'] ?? 'medium',
+
+            'reasoning' => $data['reasoning']
+                ?? 'AI classification completed.',
+        ];
+    }
+
+    /**
+     * Fallback response if AI fails.
+     */
+    private function fallbackResponse($teams, $priorities): array
+    {
+        return [
+            'team_id' => $teams->first()->id ?? null,
+
+            'priority_id' =>
+                $priorities->firstWhere('level', 2)->id
+                ?? $priorities->first()->id
+                    ?? null,
+
+            'confidence' => 'low',
+
+            'reasoning' =>
+                'AI classification unavailable. Default routing applied.',
+        ];
     }
 }

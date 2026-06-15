@@ -24,7 +24,7 @@ class AIController extends Controller
             'description' => 'required|string',
         ]);
 
-        $suggestion = $this->aiService->analyzeTicked(
+        $suggestion = $this->aiService->analyzeTicket(
             $validated['title'],
             $validated['description']
         );
